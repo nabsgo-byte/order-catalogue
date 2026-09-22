@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Customers — Admin</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="topbar">
+    <h1>Customers (<%= customers.length %>)</h1>
+    <div>
+      <a class="btn" href="/admin/customers/export.csv">Export CSV</a>
+      <a class="btn btn-secondary" href="/admin">&larr; Dashboard</a>
+    </div>
+  </div>
+  <table>
+    <tr><th>Name</th><th>Address</th><th>Phone</th><th>Email</th><th>Since</th></tr>
+    <% customers.forEach(c => { %>
+      <tr>
+        <td><%= c.name %></td>
+        <td><%= c.address %></td>
+        <td><%= c.phone %></td>
+        <td><%= c.email || '' %></td>
+        <td><%= new Date(c.created_at).toLocaleDateString() %></td>
+      </tr>
+    <% }) %>
+  </table>
+</body>
+</html>

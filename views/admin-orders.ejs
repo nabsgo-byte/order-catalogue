@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Orders — Admin</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="topbar">
+    <h1>Orders (<%= orders.length %>)</h1>
+    <div>
+      <a class="btn" href="/admin/orders/export.csv">Export CSV</a>
+      <a class="btn btn-secondary" href="/admin">&larr; Dashboard</a>
+    </div>
+  </div>
+  <table>
+    <tr><th>#</th><th>Customer</th><th>Date</th><th>Items</th><th>Total</th><th></th></tr>
+    <% orders.forEach(o => { %>
+      <tr>
+        <td><%= o.id %></td>
+        <td><%= o.customer_name %></td>
+        <td><%= new Date(o.created_at).toLocaleString() %></td>
+        <td><%= o.items.length %></td>
+        <td>$<%= Number(o.total).toFixed(2) %></td>
+        <td><a href="/quote/<%= o.id %>/pdf?admin=1">PDF</a></td>
+      </tr>
+    <% }) %>
+  </table>
+</body>
+</html>

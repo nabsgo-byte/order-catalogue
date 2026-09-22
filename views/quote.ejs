@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Quote #<%= order.id %> — <%= companyName %></title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="card">
+    <h1>Thanks, <%= customer.name %>!</h1>
+    <p>Your order has been submitted. Here is your quote:</p>
+    <p class="muted">Quote #<%= order.id %> — <%= new Date(order.created_at).toLocaleString() %></p>
+    <table>
+      <tr><th>Code</th><th>Description</th><th>Qty</th><th>Price</th><th>Line total</th></tr>
+      <% items.forEach(i => { %>
+        <tr>
+          <td><%= i.product_code %></td>
+          <td><%= i.description %></td>
+          <td><%= i.qty %></td>
+          <td>$<%= i.unit_price.toFixed(2) %></td>
+          <td>$<%= (i.unit_price * i.qty).toFixed(2) %></td>
+        </tr>
+      <% }) %>
+    </table>
+    <p class="total">Total: $<%= Number(order.total).toFixed(2) %></p>
+    <p>
+      <a class="btn" href="/quote/<%= order.id %>/pdf">Download PDF</a>
+      <a class="btn btn-secondary" href="/catalog">Back to catalog</a>
+    </p>
+    <% if (!customer.email) { %>
+      <p class="muted">Tip: add an email to your profile next time to get this quote emailed to you automatically.</p>
+    <% } %>
+  </div>
+</body>
+</html>

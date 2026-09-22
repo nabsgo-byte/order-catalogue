@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>New customer — <%= companyName %></title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="card" style="max-width:460px; margin: 60px auto;">
+    <h1>Welcome, <%= name %></h1>
+    <p class="muted">We don't have you on file yet — add your details to continue.</p>
+    <form method="post" action="/register">
+      <p>
+        <label>Delivery address<br>
+        <input type="text" name="address" required style="width:100%"></label>
+      </p>
+      <p>
+        <label>Phone<br>
+        <input type="text" name="phone" required style="width:100%"></label>
+      </p>
+      <p>
+        <label>Email (optional, to receive your quotes)<br>
+        <input type="email" name="email" style="width:100%"></label>
+      </p>
+      <button type="submit">Save and browse catalog</button>
+    </form>
+  </div>
+</body>
+</html>

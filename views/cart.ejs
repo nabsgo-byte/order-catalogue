@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Your cart — <%= companyName %></title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="topbar">
+    <h1>Your cart</h1>
+    <a class="btn btn-secondary" href="/catalog">&larr; Back to catalog</a>
+  </div>
+
+  <% if (items.length === 0) { %>
+    <p class="muted">Your cart is empty.</p>
+  <% } else { %>
+    <table>
+      <tr><th>Code</th><th>Description</th><th>Qty</th><th>Price</th><th>Line total</th><th></th></tr>
+      <% items.forEach(i => { %>
+        <tr>
+          <td><%= i.product_code %></td>
+          <td><%= i.description %></td>
+          <td>
+            <form method="post" action="/cart/update" class="row" style="gap:4px">
+              <input type="hidden" name="productId" value="<%= i.id %>">
+              <input type="number" name="qty" value="<%= i.qty %>" min="0" class="qty-input">
+              <button type="submit">Update</button>
+            </form>
+          </td>
+          <td>$<%= i.unit_price.toFixed(2) %></td>
+          <td>$<%= (i.unit_price * i.qty).toFixed(2) %></td>
+          <td><form method="post" action="/cart/remove"><input type="hidden" name="productId" value="<%= i.id %>"><button class="btn-secondary" type="submit">Remove</button></form></td>
+        </tr>
+      <% }) %>
+    </table>
+    <p class="total">Total: $<%= total.toFixed(2) %></p>
+    <form method="post" action="/order/submit">
+      <button type="submit">Submit order &amp; get quote</button>
+    </form>
+  <% } %>
+</body>
+</html>
