@@ -134,7 +134,7 @@ app.get('/catalog', requireCustomer, async (req, res) => {
               (image_data IS NOT NULL) AS has_image
        FROM products
        WHERE description ILIKE $1 OR product_code ILIKE $1
-       ORDER BY description LIMIT $2 OFFSET $3`,
+       ORDER BY lower(product_code) LIMIT $2 OFFSET $3`,
       [`%${q}%`, perPage, offset]
     ));
   } else {
@@ -142,7 +142,7 @@ app.get('/catalog', requireCustomer, async (req, res) => {
     ({ rows } = await pool.query(
       `SELECT id, product_code, description, unit_of_measure, unit_price,
               (image_data IS NOT NULL) AS has_image
-       FROM products ORDER BY description LIMIT $1 OFFSET $2`,
+       FROM products ORDER BY lower(product_code) LIMIT $1 OFFSET $2`,
       [perPage, offset]
     ));
   }
