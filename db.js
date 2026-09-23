@@ -1,5 +1,5 @@
 const { Pool } = require('pg');
-
+console.log('DATABASE_URL present:', !!process.env.DATABASE_URL, '| starts with:', (process.env.DATABASE_URL || 'MISSING').slice(0, 15));
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.PGSSL === 'false' ? false : { rejectUnauthorized: false }
