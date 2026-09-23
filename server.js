@@ -118,37 +118,45 @@ app.get('/logout', (req, res) => {
 
 app.get('/catalog', requireCustomer, async (req, res) => {
   const q = (req.query.q || '').trim();
-  let products;
-  let totalCount;
+  const perPage = 50;
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const offset = (page - 1) * perPage;
 
-  const countRes = await pool.query('SELECT count(*) FROM products');
-  totalCount = Number(countRes.rows[0].count);
+  let countRes, rows;
 
   if (q) {
-    const { rows } = await pool.query(
+    countRes = await pool.query(
+      `SELECT count(*) FROM products WHERE description ILIKE $1 OR product_code ILIKE $1`,
+      [`%${q}%`]
+    );
+    ({ rows } = await pool.query(
       `SELECT id, product_code, description, unit_of_measure, unit_price,
               (image_data IS NOT NULL) AS has_image
        FROM products
        WHERE description ILIKE $1 OR product_code ILIKE $1
-       ORDER BY description LIMIT 100`,
-      [`%${q}%`]
-    );
-    products = rows;
+       ORDER BY description LIMIT $2 OFFSET $3`,
+      [`%${q}%`, perPage, offset]
+    ));
   } else {
-    const { rows } = await pool.query(
+    countRes = await pool.query('SELECT count(*) FROM products');
+    ({ rows } = await pool.query(
       `SELECT id, product_code, description, unit_of_measure, unit_price,
               (image_data IS NOT NULL) AS has_image
-       FROM products ORDER BY description LIMIT 50`
-    );
-    products = rows;
+       FROM products ORDER BY description LIMIT $1 OFFSET $2`,
+      [perPage, offset]
+    ));
   }
 
+  const totalCount = Number(countRes.rows[0].count);
+  const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
   const cartCount = cartArray(req.session).reduce((sum, i) => sum + i.qty, 0);
 
   res.render('catalog', {
-    products,
+    products: rows,
     q,
     totalCount,
+    page,
+    totalPages,
     cartCount,
     customerName: req.session.customerName
   });
@@ -159,7 +167,11 @@ app.post('/cart/add', requireCustomer, (req, res) => {
   const qty = Math.max(1, parseInt(req.body.qty, 10) || 1);
   req.session.cart = req.session.cart || {};
   req.session.cart[productId] = (req.session.cart[productId] || 0) + qty;
-  res.redirect('/catalog' + (req.body.q ? `?q=${encodeURIComponent(req.body.q)}` : ''));
+  const params = new URLSearchParams();
+  if (req.body.q) params.set('q', req.body.q);
+  if (req.body.page) params.set('page', req.body.page);
+  const qs = params.toString();
+  res.redirect('/catalog' + (qs ? `?${qs}` : ''));
 });
 
 app.post('/cart/update', requireCustomer, (req, res) => {
