@@ -47,6 +47,21 @@ function cartArray(session) {
   }));
 }
 
+// ---------- Product images ----------
+// Stored as bytes in the database (not the filesystem) so they survive
+// redeploys on Render's free tier, which has no persistent disk.
+
+app.get('/images/:code', async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT image_data, image_mime FROM products WHERE product_code = $1',
+    [req.params.code]
+  );
+  if (!rows.length || !rows[0].image_data) return res.status(404).end();
+  res.set('Content-Type', rows[0].image_mime || 'image/jpeg');
+  res.set('Cache-Control', 'public, max-age=604800');
+  res.send(rows[0].image_data);
+});
+
 // ---------- Customer identification ----------
 
 app.get('/', (req, res) => {
@@ -111,7 +126,9 @@ app.get('/catalog', requireCustomer, async (req, res) => {
 
   if (q) {
     const { rows } = await pool.query(
-      `SELECT * FROM products
+      `SELECT id, product_code, description, unit_of_measure, unit_price,
+              (image_data IS NOT NULL) AS has_image
+       FROM products
        WHERE description ILIKE $1 OR product_code ILIKE $1
        ORDER BY description LIMIT 100`,
       [`%${q}%`]
@@ -119,7 +136,9 @@ app.get('/catalog', requireCustomer, async (req, res) => {
     products = rows;
   } else {
     const { rows } = await pool.query(
-      'SELECT * FROM products ORDER BY description LIMIT 50'
+      `SELECT id, product_code, description, unit_of_measure, unit_price,
+              (image_data IS NOT NULL) AS has_image
+       FROM products ORDER BY description LIMIT 50`
     );
     products = rows;
   }
@@ -163,7 +182,8 @@ async function loadCartItems(session) {
   if (entries.length === 0) return [];
   const ids = entries.map((e) => e.productId);
   const { rows } = await pool.query(
-    'SELECT * FROM products WHERE id = ANY($1::int[])',
+    `SELECT id, product_code, description, unit_price, (image_data IS NOT NULL) AS has_image
+     FROM products WHERE id = ANY($1::int[])`,
     [ids]
   );
   return entries.map((e) => {
@@ -173,7 +193,8 @@ async function loadCartItems(session) {
       qty: e.qty,
       product_code: p ? p.product_code : 'UNKNOWN',
       description: p ? p.description : 'Unknown product',
-      unit_price: p ? Number(p.unit_price) : 0
+      unit_price: p ? Number(p.unit_price) : 0,
+      has_image: p ? p.has_image : false
     };
   });
 }
