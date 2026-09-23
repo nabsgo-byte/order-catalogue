@@ -27,9 +27,16 @@
   <% } %>
 
   <table>
-    <tr><th>Code</th><th>Description</th><th>Unit</th><th>Price</th><th></th></tr>
+    <tr><th></th><th>Code</th><th>Description</th><th>Unit</th><th>Price</th><th></th></tr>
     <% products.forEach(p => { %>
       <tr>
+        <td>
+          <% if (p.has_image) { %>
+            <img class="thumb" src="/images/<%= p.product_code %>" alt="<%= p.product_code %>">
+          <% } else { %>
+            <span class="thumb-placeholder">no photo</span>
+          <% } %>
+        </td>
         <td><%= p.product_code %></td>
         <td><%= p.description %></td>
         <td><%= p.unit_of_measure %></td>
