@@ -15,9 +15,16 @@
     <p class="muted">Your cart is empty.</p>
   <% } else { %>
     <table>
-      <tr><th>Code</th><th>Description</th><th>Qty</th><th>Price</th><th>Line total</th><th></th></tr>
+      <tr><th></th><th>Code</th><th>Description</th><th>Qty</th><th>Price</th><th>Line total</th><th></th></tr>
       <% items.forEach(i => { %>
         <tr>
+          <td>
+            <% if (i.has_image) { %>
+              <img class="thumb" src="/images/<%= i.product_code %>" alt="<%= i.product_code %>">
+            <% } else { %>
+              <span class="thumb-placeholder">no photo</span>
+            <% } %>
+          </td>
           <td><%= i.product_code %></td>
           <td><%= i.description %></td>
           <td>
