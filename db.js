@@ -1,5 +1,5 @@
 const { Pool } = require('pg');
-console.log('DATABASE_URL present:', !!process.env.DATABASE_URL, '| starts with:', (process.env.DATABASE_URL || 'MISSING').slice(0, 15));
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.PGSSL === 'false' ? false : { rejectUnauthorized: false }
@@ -33,6 +33,13 @@ async function initSchema() {
       status TEXT DEFAULT 'new',
       created_at TIMESTAMPTZ DEFAULT now()
     );
+  `);
+
+  // Added after the first release, for product photos. IF NOT EXISTS makes
+  // this safe to run again on a database that was already seeded.
+  await pool.query(`
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS image_data BYTEA;
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS image_mime TEXT;
   `);
 }
 
