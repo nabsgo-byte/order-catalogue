@@ -139,6 +139,63 @@ app.get('/logout', (req, res) => {
   req.session.destroy(() => res.redirect('/'));
 });
 
+// ---------- Customer profile ----------
+
+app.get('/profile', requireCustomer, async (req, res) => {
+  const { rows } = await pool.query('SELECT * FROM customers WHERE id = $1', [
+    req.session.customerId
+  ]);
+  const customer = rows[0];
+  res.render('profile', {
+    customer,
+    saved: false,
+    error: null,
+    companyNameValue: customer.company_name || '',
+    addressValue: customer.address || '',
+    phoneValue: customer.phone || '',
+    emailValue: customer.email || ''
+  });
+});
+
+app.post('/profile', requireCustomer, async (req, res) => {
+  const { rows } = await pool.query('SELECT * FROM customers WHERE id = $1', [
+    req.session.customerId
+  ]);
+  const customer = rows[0];
+
+  const companyName = (req.body.companyName || '').trim();
+  const address = (req.body.address || '').trim();
+  const phone = (req.body.phone || '').trim();
+  const email = (req.body.email || '').trim();
+
+  if (!companyName || !address || !phone) {
+    return res.render('profile', {
+      customer,
+      saved: false,
+      error: 'Company name, address, and phone are all required.',
+      companyNameValue: companyName,
+      addressValue: address,
+      phoneValue: phone,
+      emailValue: email
+    });
+  }
+
+  await pool.query(
+    `UPDATE customers SET company_name = $1, address = $2, phone = $3, email = $4 WHERE id = $5`,
+    [companyName, address, phone, email || null, req.session.customerId]
+  );
+
+  res.render('profile', {
+    customer: { ...customer, company_name: companyName, address, phone, email },
+    saved: true,
+    error: null,
+    companyNameValue: companyName,
+    addressValue: address,
+    phoneValue: phone,
+    emailValue: email
+  });
+});
+
 // ---------- Catalog & cart ----------
 
 app.get('/catalog', requireCustomer, async (req, res) => {
