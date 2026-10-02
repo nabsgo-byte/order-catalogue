@@ -9,7 +9,11 @@
   <div class="card">
     <h1>Thanks, <%= customer.name %>!</h1>
     <p>Your order has been submitted. Here is your quote:</p>
-    <p class="muted">Quote #<%= order.id %> — <%= new Date(order.created_at).toLocaleString() %></p>
+    <p class="muted">
+      Quote #<%= order.id %> — <%= new Date(order.created_at).toLocaleString() %>
+      <% if (order.reference) { %><br>Reference: <%= order.reference %><% } %>
+      <% if (customer.company_name) { %><br><%= customer.company_name %><% } %>
+    </p>
     <table>
       <tr><th>Code</th><th>Description</th><th>Qty</th><th>Price</th><th>Line total</th></tr>
       <% items.forEach(i => { %>
