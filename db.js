@@ -48,6 +48,19 @@ async function initSchema() {
   await pool.query(`
     ALTER TABLE products ADD COLUMN IF NOT EXISTS special_price NUMERIC(10,2);
   `);
+
+  // Company name is mandatory for new signups (enforced in the /register
+  // route), but nullable here so existing customers without one don't break.
+  await pool.query(`
+    ALTER TABLE customers ADD COLUMN IF NOT EXISTS company_name TEXT;
+  `);
+
+  // Optional customer-supplied reference (their own PO number, job name,
+  // etc.), entered per order at checkout and shown on the quote, emails,
+  // and admin order list.
+  await pool.query(`
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS reference TEXT;
+  `);
 }
 
 module.exports = { pool, initSchema };
