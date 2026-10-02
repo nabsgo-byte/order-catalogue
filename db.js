@@ -61,6 +61,13 @@ async function initSchema() {
   await pool.query(`
     ALTER TABLE orders ADD COLUMN IF NOT EXISTS reference TEXT;
   `);
+
+  // A durable copy of each customer's in-progress cart, so it survives a
+  // server restart/redeploy (the session itself is in-memory only) or the
+  // customer coming back from a different device. Cleared once they submit.
+  await pool.query(`
+    ALTER TABLE customers ADD COLUMN IF NOT EXISTS saved_cart JSONB;
+  `);
 }
 
 module.exports = { pool, initSchema };
