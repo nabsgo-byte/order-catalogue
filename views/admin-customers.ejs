@@ -14,10 +14,11 @@
     </div>
   </div>
   <table>
-    <tr><th>Name</th><th>Address</th><th>Phone</th><th>Email</th><th>Since</th></tr>
+    <tr><th>Name</th><th>Company</th><th>Address</th><th>Phone</th><th>Email</th><th>Since</th></tr>
     <% customers.forEach(c => { %>
       <tr>
         <td><%= c.name %></td>
+        <td><%= c.company_name || '' %></td>
         <td><%= c.address %></td>
         <td><%= c.phone %></td>
         <td><%= c.email || '' %></td>
