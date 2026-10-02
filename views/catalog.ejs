@@ -8,40 +8,59 @@
 <body>
   <div class="topbar">
     <div>
-      <h1 style="margin-bottom:0"><%= companyName %></h1>
+      <img src="/logo.png" alt="<%= companyName %>" style="max-height:40px; display:block; margin-bottom:4px;">
       <span class="muted">Signed in as <%= customerName %> — <a href="/logout">not you?</a></span>
     </div>
     <a class="btn" href="/cart">Cart (<%= cartCount %>)</a>
   </div>
 
+  <div class="row" style="gap:8px; margin-bottom:12px">
+    <a class="btn <%= !specialsOnly ? '' : 'btn-secondary' %>" href="/catalog<%= q ? '?q=' + encodeURIComponent(q) : '' %>">All products</a>
+    <a class="btn <%= specialsOnly ? '' : 'btn-secondary' %>" href="/catalog?tab=specials<%= q ? '&q=' + encodeURIComponent(q) : '' %>">★ Specials (<%= specialsCount %>)</a>
+  </div>
+
   <form method="get" action="/catalog" class="row" style="margin-bottom:16px">
+    <% if (specialsOnly) { %><input type="hidden" name="tab" value="specials"><% } %>
     <input type="text" name="q" value="<%= q %>" placeholder="Search by name or product code..." style="flex:1">
     <button type="submit">Search</button>
-    <% if (q) { %><a class="btn btn-secondary" href="/catalog">Clear</a><% } %>
+    <% if (q) { %><a class="btn btn-secondary" href="/catalog<%= specialsOnly ? '?tab=specials' : '' %>">Clear</a><% } %>
   </form>
+
+  <% function pageLink(p) {
+       const params = [];
+       if (specialsOnly) params.push('tab=specials');
+       if (q) params.push('q=' + encodeURIComponent(q));
+       params.push('page=' + p);
+       return '/catalog?' + params.join('&');
+     } %>
 
   <div class="row" style="justify-content:space-between">
     <% if (!q) { %>
-      <p class="muted">Showing <%= totalCount === 0 ? 0 : ((page - 1) * 50 + 1) %>–<%= Math.min(page * 50, totalCount) %> of <%= totalCount %> products.</p>
+      <p class="muted">Showing <%= totalCount === 0 ? 0 : ((page - 1) * 50 + 1) %>–<%= Math.min(page * 50, totalCount) %> of <%= totalCount %> <%= specialsOnly ? 'specials' : 'products' %>.</p>
     <% } else { %>
       <p class="muted"><%= totalCount %> result(s) for "<%= q %>" — page <%= page %> of <%= totalPages %></p>
     <% } %>
     <% if (totalPages > 1) { %>
       <div class="row" style="gap:6px">
         <% if (page > 1) { %>
-          <a class="btn btn-secondary" href="/catalog?page=<%= page - 1 %><%= q ? '&q=' + encodeURIComponent(q) : '' %>">&larr; Prev</a>
+          <a class="btn btn-secondary" href="<%= pageLink(page - 1) %>">&larr; Prev</a>
         <% } %>
         <span class="muted">Page <%= page %> of <%= totalPages %></span>
         <% if (page < totalPages) { %>
-          <a class="btn btn-secondary" href="/catalog?page=<%= page + 1 %><%= q ? '&q=' + encodeURIComponent(q) : '' %>">Next &rarr;</a>
+          <a class="btn btn-secondary" href="<%= pageLink(page + 1) %>">Next &rarr;</a>
         <% } %>
       </div>
     <% } %>
   </div>
 
+  <% if (specialsOnly && products.length === 0) { %>
+    <p class="muted">No specials are active right now — check back soon.</p>
+  <% } %>
+
   <table>
     <tr><th></th><th>Code</th><th>Description</th><th>Unit</th><th>Price</th><th></th></tr>
     <% products.forEach(p => { %>
+      <% const onSpecial = p.special_price !== null && p.special_price !== undefined; %>
       <tr>
         <td>
           <% if (p.has_image) { %>
@@ -53,12 +72,20 @@
         <td><%= p.product_code %></td>
         <td><%= p.description %></td>
         <td><%= p.unit_of_measure %></td>
-        <td>$<%= Number(p.unit_price).toFixed(2) %></td>
+        <td>
+          <% if (onSpecial) { %>
+            <span class="muted" style="text-decoration:line-through">$<%= Number(p.unit_price).toFixed(2) %></span><br>
+            <span style="color:#b00000; font-weight:bold">$<%= Number(p.special_price).toFixed(2) %> ★</span>
+          <% } else { %>
+            $<%= Number(p.unit_price).toFixed(2) %>
+          <% } %>
+        </td>
         <td>
           <form method="post" action="/cart/add" class="row" style="gap:4px">
             <input type="hidden" name="productId" value="<%= p.id %>">
             <input type="hidden" name="q" value="<%= q %>">
             <input type="hidden" name="page" value="<%= page %>">
+            <% if (specialsOnly) { %><input type="hidden" name="tab" value="specials"><% } %>
             <input type="number" name="qty" value="1" min="1" class="qty-input">
             <button type="submit">Add</button>
           </form>
@@ -70,11 +97,11 @@
   <% if (totalPages > 1) { %>
     <div class="row" style="gap:6px; justify-content:center; margin-top:16px">
       <% if (page > 1) { %>
-        <a class="btn btn-secondary" href="/catalog?page=<%= page - 1 %><%= q ? '&q=' + encodeURIComponent(q) : '' %>">&larr; Prev</a>
+        <a class="btn btn-secondary" href="<%= pageLink(page - 1) %>">&larr; Prev</a>
       <% } %>
       <span class="muted">Page <%= page %> of <%= totalPages %></span>
       <% if (page < totalPages) { %>
-        <a class="btn btn-secondary" href="/catalog?page=<%= page + 1 %><%= q ? '&q=' + encodeURIComponent(q) : '' %>">Next &rarr;</a>
+        <a class="btn btn-secondary" href="<%= pageLink(page + 1) %>">Next &rarr;</a>
       <% } %>
     </div>
   <% } %>
