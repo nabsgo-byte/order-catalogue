@@ -14,11 +14,12 @@
     </div>
   </div>
   <table>
-    <tr><th>#</th><th>Customer</th><th>Date</th><th>Items</th><th>Total</th><th></th></tr>
+    <tr><th>#</th><th>Customer</th><th>Reference</th><th>Date</th><th>Items</th><th>Total</th><th></th></tr>
     <% orders.forEach(o => { %>
       <tr>
         <td><%= o.id %></td>
         <td><%= o.customer_name %></td>
+        <td><%= o.reference || '' %></td>
         <td><%= new Date(o.created_at).toLocaleString() %></td>
         <td><%= o.items.length %></td>
         <td>$<%= Number(o.total).toFixed(2) %></td>
