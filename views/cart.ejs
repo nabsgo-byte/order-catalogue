@@ -20,7 +20,7 @@
         <tr>
           <td>
             <% if (i.has_image) { %>
-              <img class="thumb" src="/images/<%= i.product_code %>" alt="<%= i.product_code %>">
+              <img class="thumb" src="/images/<%= i.product_code %>" alt="<%= i.product_code %>" onclick="openZoom('/images/<%= i.product_code %>', '<%= i.product_code %>')">
             <% } else { %>
               <span class="thumb-placeholder">no photo</span>
             <% } %>
@@ -34,7 +34,7 @@
               <button type="submit">Update</button>
             </form>
           </td>
-          <td>$<%= i.unit_price.toFixed(2) %></td>
+          <td>$<%= i.unit_price.toFixed(2) %><% if (i.on_special) { %> <span style="color:#b00000">★</span><% } %></td>
           <td>$<%= (i.unit_price * i.qty).toFixed(2) %></td>
           <td><form method="post" action="/cart/remove"><input type="hidden" name="productId" value="<%= i.id %>"><button class="btn-secondary" type="submit">Remove</button></form></td>
         </tr>
@@ -45,5 +45,23 @@
       <button type="submit">Submit order &amp; get quote</button>
     </form>
   <% } %>
+
+  <div class="zoom-overlay" id="zoomOverlay" onclick="closeZoom()">
+    <button class="zoom-close" onclick="closeZoom()">&times;</button>
+    <img id="zoomImage" src="" alt="">
+  </div>
+  <script>
+    function openZoom(src, alt) {
+      document.getElementById('zoomImage').src = src;
+      document.getElementById('zoomImage').alt = alt;
+      document.getElementById('zoomOverlay').classList.add('open');
+    }
+    function closeZoom() {
+      document.getElementById('zoomOverlay').classList.remove('open');
+    }
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closeZoom();
+    });
+  </script>
 </body>
 </html>
