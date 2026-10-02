@@ -41,6 +41,13 @@ async function initSchema() {
     ALTER TABLE products ADD COLUMN IF NOT EXISTS image_data BYTEA;
     ALTER TABLE products ADD COLUMN IF NOT EXISTS image_mime TEXT;
   `);
+
+  // Added for monthly specials. NULL = not currently on special. Uploading
+  // a new specials list clears this for every product first, then sets it
+  // for just the uploaded codes — so last month's specials never linger.
+  await pool.query(`
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS special_price NUMERIC(10,2);
+  `);
 }
 
 module.exports = { pool, initSchema };
