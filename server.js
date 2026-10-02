@@ -51,6 +51,22 @@ function cartArray(session) {
   }));
 }
 
+// Mirrors the session cart onto the customer's row, so it isn't lost if the
+// server restarts (the session itself lives only in memory) or they come
+// back from a different device. Best-effort — a save failure here shouldn't
+// block the customer from continuing to shop.
+async function persistCart(req) {
+  if (!req.session.customerId) return;
+  try {
+    await pool.query('UPDATE customers SET saved_cart = $1 WHERE id = $2', [
+      JSON.stringify(req.session.cart || {}),
+      req.session.customerId
+    ]);
+  } catch (err) {
+    console.error('Failed to save cart (continuing anyway):', err);
+  }
+}
+
 // ---------- Product images ----------
 // Stored as bytes in the database (not the filesystem) so they survive
 // redeploys on Render's free tier, which has no persistent disk.
@@ -85,6 +101,9 @@ app.post('/start', async (req, res) => {
   if (rows.length) {
     req.session.customerId = rows[0].id;
     req.session.customerName = rows[0].name;
+    // Restore their in-progress cart (saved to the database as they shop),
+    // so it survives a server restart or coming back from another device.
+    req.session.cart = rows[0].saved_cart || {};
     return res.redirect('/catalog');
   }
 
@@ -247,11 +266,12 @@ app.get('/catalog', requireCustomer, async (req, res) => {
   });
 });
 
-app.post('/cart/add', requireCustomer, (req, res) => {
+app.post('/cart/add', requireCustomer, async (req, res) => {
   const productId = req.body.productId;
   const qty = Math.max(1, parseInt(req.body.qty, 10) || 1);
   req.session.cart = req.session.cart || {};
   req.session.cart[productId] = (req.session.cart[productId] || 0) + qty;
+  await persistCart(req);
   const params = new URLSearchParams();
   if (req.body.q) params.set('q', req.body.q);
   if (req.body.page) params.set('page', req.body.page);
@@ -260,18 +280,20 @@ app.post('/cart/add', requireCustomer, (req, res) => {
   res.redirect('/catalog' + (qs ? `?${qs}` : ''));
 });
 
-app.post('/cart/update', requireCustomer, (req, res) => {
+app.post('/cart/update', requireCustomer, async (req, res) => {
   const productId = req.body.productId;
   const qty = Math.max(0, parseInt(req.body.qty, 10) || 0);
   req.session.cart = req.session.cart || {};
   if (qty === 0) delete req.session.cart[productId];
   else req.session.cart[productId] = qty;
+  await persistCart(req);
   res.redirect('/cart');
 });
 
-app.post('/cart/remove', requireCustomer, (req, res) => {
+app.post('/cart/remove', requireCustomer, async (req, res) => {
   const productId = req.body.productId;
   if (req.session.cart) delete req.session.cart[productId];
+  await persistCart(req);
   res.redirect('/cart');
 });
 
@@ -327,6 +349,7 @@ app.post('/order/submit', requireCustomer, async (req, res) => {
   const customer = customerRes.rows[0];
 
   req.session.cart = {};
+  await persistCart(req);
 
   // Fire off emails — don't block the customer's page if email fails
   try {
