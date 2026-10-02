@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>My profile — <%= companyName %></title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="topbar">
+    <h1>My profile</h1>
+    <a class="btn btn-secondary" href="/catalog">&larr; Back to catalog</a>
+  </div>
+
+  <div class="card" style="max-width:460px">
+    <p class="muted">Your name (<strong><%= customer.name %></strong>) is how you log in, so it can't be changed here — contact us if it needs to change.</p>
+    <% if (saved) { %><p style="color:#0a7a2f">Saved.</p><% } %>
+    <% if (error) { %><p style="color:#b00"><%= error %></p><% } %>
+    <form method="post" action="/profile">
+      <p>
+        <label>Company name<br>
+        <input type="text" name="companyName" required style="width:100%" value="<%= companyNameValue %>"></label>
+      </p>
+      <p>
+        <label>Delivery address<br>
+        <input type="text" name="address" required style="width:100%" value="<%= addressValue %>"></label>
+      </p>
+      <p>
+        <label>Phone<br>
+        <input type="text" name="phone" required style="width:100%" value="<%= phoneValue %>"></label>
+      </p>
+      <p>
+        <label>Email (optional, to receive your quotes)<br>
+        <input type="email" name="email" style="width:100%" value="<%= emailValue %>"></label>
+      </p>
+      <button type="submit">Save changes</button>
+    </form>
+  </div>
+</body>
+</html>
