@@ -1,17 +1,32 @@
+/* Colors pulled from Conglom's own logo and printed materials:
+   a muted sage-gray ink (#9B9C8E) on a warm cream background (#FFFFEB).
+   The sage is darkened for buttons/links/text so it stays readable. */
+:root {
+  --cream: #fffdf2;
+  --card-bg: #ffffff;
+  --brand: #6c6d5f;        /* buttons, links, headings accent */
+  --brand-dark: #51524a;   /* hover state */
+  --brand-light: #9b9c8e;  /* original logo tone — badges, light accents */
+  --border: #e6e3d6;
+  --text: #2b2b26;
+  --muted-text: #78786c;
+  --sale: #b00000;
+}
+
 * { box-sizing: border-box; }
 body {
   font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   max-width: 900px;
   margin: 0 auto;
   padding: 20px;
-  color: #222;
-  background: #fafafa;
+  color: var(--text);
+  background: var(--cream);
 }
-h1, h2 { margin-top: 0; }
-a { color: #1a5cb0; }
+h1, h2 { margin-top: 0; color: var(--brand-dark); }
+a { color: var(--brand); }
 .card {
-  background: #fff;
-  border: 1px solid #ddd;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 20px;
   margin-bottom: 16px;
@@ -19,45 +34,47 @@ a { color: #1a5cb0; }
 input, button, select {
   font-size: 15px;
   padding: 8px 10px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border);
   border-radius: 6px;
+  font-family: inherit;
 }
 button, .btn {
-  background: #1a5cb0;
+  background: var(--brand);
   color: #fff;
   border: none;
   cursor: pointer;
   text-decoration: none;
   display: inline-block;
 }
-button:hover, .btn:hover { background: #144a8c; }
-.btn-secondary { background: #777; }
+button:hover, .btn:hover { background: var(--brand-dark); }
+.btn-secondary { background: var(--brand-light); }
+.btn-secondary:hover { background: var(--muted-text); }
 table { width: 100%; border-collapse: collapse; margin: 12px 0; }
-th, td { text-align: left; padding: 8px; border-bottom: 1px solid #eee; font-size: 14px; vertical-align: middle; }
-th { background: #f0f0f0; }
+th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: middle; }
+th { background: #f4f2e6; color: var(--brand-dark); }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.muted { color: #777; font-size: 13px; }
+.muted { color: var(--muted-text); font-size: 13px; }
 .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .qty-input { width: 60px; }
-.total { font-size: 18px; font-weight: bold; }
-.badge { background: #eef3fb; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+.total { font-size: 18px; font-weight: bold; color: var(--brand-dark); }
+.badge { background: #ecebe0; color: var(--brand-dark); padding: 2px 8px; border-radius: 10px; font-size: 12px; }
 .thumb {
   width: 56px;
   height: 56px;
   object-fit: contain;
-  border: 1px solid #eee;
+  border: 1px solid var(--border);
   border-radius: 4px;
   background: #fff;
 }
 .thumb-placeholder {
   width: 56px;
   height: 56px;
-  border: 1px dashed #ddd;
+  border: 1px dashed var(--border);
   border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #bbb;
+  color: var(--brand-light);
   font-size: 10px;
   text-align: center;
 }
