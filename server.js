@@ -94,18 +94,39 @@ app.post('/start', async (req, res) => {
 
 app.get('/register', (req, res) => {
   if (!req.session.pendingName) return res.redirect('/');
-  res.render('register', { name: req.session.pendingName });
+  res.render('register', {
+    name: req.session.pendingName,
+    error: null,
+    companyNameValue: '',
+    addressValue: '',
+    phoneValue: '',
+    emailValue: ''
+  });
 });
 
 app.post('/register', async (req, res) => {
   const name = req.session.pendingName;
   if (!name) return res.redirect('/');
-  const { address, phone, email } = req.body;
+  const companyName = (req.body.companyName || '').trim();
+  const address = (req.body.address || '').trim();
+  const phone = (req.body.phone || '').trim();
+  const email = (req.body.email || '').trim();
+
+  if (!companyName || !address || !phone) {
+    return res.render('register', {
+      name,
+      error: 'Company name, address, and phone are all required.',
+      companyNameValue: companyName,
+      addressValue: address,
+      phoneValue: phone,
+      emailValue: email
+    });
+  }
 
   const { rows } = await pool.query(
-    `INSERT INTO customers (name, address, phone, email) VALUES ($1, $2, $3, $4)
+    `INSERT INTO customers (name, company_name, address, phone, email) VALUES ($1, $2, $3, $4, $5)
      RETURNING *`,
-    [name, address, phone, email || null]
+    [name, companyName, address, phone, email || null]
   );
 
   req.session.customerId = rows[0].id;
@@ -235,10 +256,11 @@ app.post('/order/submit', requireCustomer, async (req, res) => {
   if (items.length === 0) return res.redirect('/cart');
 
   const total = items.reduce((sum, i) => sum + i.qty * i.unit_price, 0);
+  const reference = (req.body.reference || '').trim() || null;
 
   const { rows } = await pool.query(
-    `INSERT INTO orders (customer_id, items, total) VALUES ($1, $2, $3) RETURNING *`,
-    [req.session.customerId, JSON.stringify(items), total]
+    `INSERT INTO orders (customer_id, items, total, reference) VALUES ($1, $2, $3, $4) RETURNING *`,
+    [req.session.customerId, JSON.stringify(items), total, reference]
   );
   const order = rows[0];
 
@@ -257,9 +279,9 @@ app.post('/order/submit', requireCustomer, async (req, res) => {
       await sendEmail({
         to: customer.email,
         subject: `Your quote #${order.id} from ${COMPANY_NAME}`,
-        html: `<p>Hi ${customer.name},</p><p>Thanks for your order. Your quote is attached.</p><p>Total: $${total.toFixed(
-          2
-        )}</p>`,
+        html: `<p>Hi ${customer.name},</p><p>Thanks for your order. Your quote is attached.</p>${
+          order.reference ? `<p>Reference: ${order.reference}</p>` : ''
+        }<p>Total: $${total.toFixed(2)}</p>`,
         attachments: [{ filename: `quote-${order.id}.pdf`, content: pdfBuffer }]
       });
     }
@@ -281,9 +303,11 @@ app.post('/order/submit', requireCustomer, async (req, res) => {
       await sendEmail({
         to: ADMIN_EMAIL,
         subject: `New order #${order.id} — ${customer.name} — $${total.toFixed(2)}`,
-        html: `<p>New order from <b>${customer.name}</b> (${customer.phone}, ${customer.address}).</p><p>Total: $${total.toFixed(
-          2
-        )}</p>`,
+        html: `<p>New order from <b>${customer.name}</b>${
+          customer.company_name ? ` (${customer.company_name})` : ''
+        } — ${customer.phone}, ${customer.address}.</p>${
+          order.reference ? `<p>Reference: ${order.reference}</p>` : ''
+        }<p>Total: $${total.toFixed(2)}</p>`,
         attachments: [
           { filename: `order-${order.id}.csv`, content: Buffer.from(csv, 'utf-8') },
           { filename: `order-${order.id}.pdf`, content: pdfBuffer }
@@ -379,7 +403,7 @@ app.get('/admin/customers', requireAdmin, async (req, res) => {
 
 app.get('/admin/customers/export.csv', requireAdmin, async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM customers ORDER BY name');
-  const csv = toCsv(rows, ['id', 'name', 'address', 'phone', 'email', 'created_at']);
+  const csv = toCsv(rows, ['id', 'name', 'company_name', 'address', 'phone', 'email', 'created_at']);
   res.set('Content-Type', 'text/csv');
   res.set('Content-Disposition', 'attachment; filename="customers.csv"');
   res.send(csv);
@@ -407,6 +431,7 @@ app.get('/admin/orders/export.csv', requireAdmin, async (req, res) => {
         order_id: o.id,
         date: new Date(o.created_at).toISOString(),
         customer: o.customer_name,
+        reference: o.reference || '',
         product_code: item.product_code,
         description: item.description,
         qty: item.qty,
@@ -419,6 +444,7 @@ app.get('/admin/orders/export.csv', requireAdmin, async (req, res) => {
     'order_id',
     'date',
     'customer',
+    'reference',
     'product_code',
     'description',
     'qty',
