@@ -2,10 +2,14 @@ require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
 const path = require('path');
+const multer = require('multer');
+const { parse } = require('csv-parse/sync');
 const { pool, initSchema } = require('./db');
 const { toCsv } = require('./lib/csv');
 const { generateQuotePdf } = require('./lib/quote-pdf');
 const { sendEmail } = require('./lib/email');
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 const app = express();
 const COMPANY_NAME = process.env.COMPANY_NAME || 'Our Catalog';
@@ -118,42 +122,45 @@ app.get('/logout', (req, res) => {
 
 app.get('/catalog', requireCustomer, async (req, res) => {
   const q = (req.query.q || '').trim();
+  const specialsOnly = req.query.tab === 'specials';
   const perPage = 50;
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
   const offset = (page - 1) * perPage;
 
-  let countRes, rows;
+  const conditions = [];
+  const params = [];
 
   if (q) {
-    countRes = await pool.query(
-      `SELECT count(*) FROM products WHERE description ILIKE $1 OR product_code ILIKE $1`,
-      [`%${q}%`]
-    );
-    ({ rows } = await pool.query(
-      `SELECT id, product_code, description, unit_of_measure, unit_price,
-              (image_data IS NOT NULL) AS has_image
-       FROM products
-       WHERE description ILIKE $1 OR product_code ILIKE $1
-       ORDER BY lower(product_code) LIMIT $2 OFFSET $3`,
-      [`%${q}%`, perPage, offset]
-    ));
-  } else {
-    countRes = await pool.query('SELECT count(*) FROM products');
-    ({ rows } = await pool.query(
-      `SELECT id, product_code, description, unit_of_measure, unit_price,
-              (image_data IS NOT NULL) AS has_image
-       FROM products ORDER BY lower(product_code) LIMIT $1 OFFSET $2`,
-      [perPage, offset]
-    ));
+    params.push(`%${q}%`);
+    conditions.push(`(description ILIKE $${params.length} OR product_code ILIKE $${params.length})`);
   }
+  if (specialsOnly) {
+    conditions.push('special_price IS NOT NULL');
+  }
+  const whereSql = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
+  const countRes = await pool.query(`SELECT count(*) FROM products ${whereSql}`, params);
   const totalCount = Number(countRes.rows[0].count);
+
+  const listParams = [...params, perPage, offset];
+  const { rows } = await pool.query(
+    `SELECT id, product_code, description, unit_of_measure, unit_price, special_price,
+            (image_data IS NOT NULL) AS has_image
+     FROM products ${whereSql}
+     ORDER BY lower(product_code) LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
+    listParams
+  );
+
+  const specialsCountRes = await pool.query('SELECT count(*) FROM products WHERE special_price IS NOT NULL');
+
   const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
   const cartCount = cartArray(req.session).reduce((sum, i) => sum + i.qty, 0);
 
   res.render('catalog', {
     products: rows,
     q,
+    specialsOnly,
+    specialsCount: Number(specialsCountRes.rows[0].count),
     totalCount,
     page,
     totalPages,
@@ -170,6 +177,7 @@ app.post('/cart/add', requireCustomer, (req, res) => {
   const params = new URLSearchParams();
   if (req.body.q) params.set('q', req.body.q);
   if (req.body.page) params.set('page', req.body.page);
+  if (req.body.tab) params.set('tab', req.body.tab);
   const qs = params.toString();
   res.redirect('/catalog' + (qs ? `?${qs}` : ''));
 });
@@ -194,18 +202,21 @@ async function loadCartItems(session) {
   if (entries.length === 0) return [];
   const ids = entries.map((e) => e.productId);
   const { rows } = await pool.query(
-    `SELECT id, product_code, description, unit_price, (image_data IS NOT NULL) AS has_image
+    `SELECT id, product_code, description, unit_price, special_price, (image_data IS NOT NULL) AS has_image
      FROM products WHERE id = ANY($1::int[])`,
     [ids]
   );
   return entries.map((e) => {
     const p = rows.find((r) => r.id === e.productId);
+    // Charge the special price whenever one is currently set on the product.
+    const effectivePrice = p ? Number(p.special_price != null ? p.special_price : p.unit_price) : 0;
     return {
       id: e.productId,
       qty: e.qty,
       product_code: p ? p.product_code : 'UNKNOWN',
       description: p ? p.description : 'Unknown product',
-      unit_price: p ? Number(p.unit_price) : 0,
+      unit_price: effectivePrice,
+      on_special: p ? p.special_price != null : false,
       has_image: p ? p.has_image : false
     };
   });
@@ -339,10 +350,11 @@ app.get('/admin/logout', (req, res) => {
 });
 
 app.get('/admin', requireAdmin, async (req, res) => {
-  const [customers, products, orders, recent] = await Promise.all([
+  const [customers, products, orders, specials, recent] = await Promise.all([
     pool.query('SELECT count(*) FROM customers'),
     pool.query('SELECT count(*) FROM products'),
     pool.query('SELECT count(*) FROM orders'),
+    pool.query('SELECT count(*) FROM products WHERE special_price IS NOT NULL'),
     pool.query(
       `SELECT o.*, c.name AS customer_name FROM orders o
        JOIN customers c ON c.id = o.customer_id
@@ -353,7 +365,8 @@ app.get('/admin', requireAdmin, async (req, res) => {
     counts: {
       customers: customers.rows[0].count,
       products: products.rows[0].count,
-      orders: orders.rows[0].count
+      orders: orders.rows[0].count,
+      specials: specials.rows[0].count
     },
     recentOrders: recent.rows
   });
@@ -415,6 +428,97 @@ app.get('/admin/orders/export.csv', requireAdmin, async (req, res) => {
   res.set('Content-Type', 'text/csv');
   res.set('Content-Disposition', 'attachment; filename="orders.csv"');
   res.send(csv);
+});
+
+// ---------- Monthly specials ----------
+// A specials upload REPLACES the current specials list: every product's
+// special_price is cleared first, then set for just the uploaded codes.
+// That way last month's specials never linger if you forget to remove one.
+
+app.get('/admin/specials', requireAdmin, async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT product_code, description, unit_price, special_price
+     FROM products WHERE special_price IS NOT NULL ORDER BY lower(product_code)`
+  );
+  res.render('admin-specials', { specials: rows, result: null, error: null });
+});
+
+app.post('/admin/specials/upload', requireAdmin, upload.single('file'), async (req, res) => {
+  if (!req.file) {
+    const { rows } = await pool.query(
+      `SELECT product_code, description, unit_price, special_price
+       FROM products WHERE special_price IS NOT NULL ORDER BY lower(product_code)`
+    );
+    return res.render('admin-specials', { specials: rows, result: null, error: 'Please choose a CSV file first.' });
+  }
+
+  let records;
+  try {
+    records = parse(req.file.buffer.toString('utf-8'), { columns: true, skip_empty_lines: true, trim: true });
+  } catch (err) {
+    const { rows } = await pool.query(
+      `SELECT product_code, description, unit_price, special_price
+       FROM products WHERE special_price IS NOT NULL ORDER BY lower(product_code)`
+    );
+    return res.render('admin-specials', {
+      specials: rows,
+      result: null,
+      error: `Could not read that file as CSV: ${err.message}`
+    });
+  }
+
+  const client = await pool.connect();
+  let matched = 0;
+  const notFound = [];
+  try {
+    await client.query('BEGIN');
+    // Clear every existing special before applying the new list.
+    await client.query('UPDATE products SET special_price = NULL WHERE special_price IS NOT NULL');
+
+    for (const row of records) {
+      const code = (row.product_code || row.Product_Code || row.PRODUCT_CODE || '').trim();
+      const priceRaw = row.special_price || row.Special_Price || row.SPECIAL_PRICE;
+      const price = parseFloat(priceRaw);
+      if (!code || isNaN(price)) continue;
+
+      const result = await client.query(
+        'UPDATE products SET special_price = $1 WHERE product_code = $2',
+        [price, code]
+      );
+      if (result.rowCount > 0) matched++;
+      else notFound.push(code);
+    }
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    client.release();
+    const { rows } = await pool.query(
+      `SELECT product_code, description, unit_price, special_price
+       FROM products WHERE special_price IS NOT NULL ORDER BY lower(product_code)`
+    );
+    return res.render('admin-specials', { specials: rows, result: null, error: `Import failed: ${err.message}` });
+  }
+  client.release();
+
+  const { rows } = await pool.query(
+    `SELECT product_code, description, unit_price, special_price
+     FROM products WHERE special_price IS NOT NULL ORDER BY lower(product_code)`
+  );
+  res.render('admin-specials', {
+    specials: rows,
+    error: null,
+    result: {
+      matched,
+      notFoundCount: notFound.length,
+      notFoundSample: notFound.slice(0, 10)
+    }
+  });
+});
+
+app.post('/admin/specials/clear', requireAdmin, async (req, res) => {
+  await pool.query('UPDATE products SET special_price = NULL WHERE special_price IS NOT NULL');
+  res.redirect('/admin/specials');
 });
 
 // ---------- Startup ----------
