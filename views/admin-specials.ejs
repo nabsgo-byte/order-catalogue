@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Specials — Admin</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="topbar">
+    <h1>Monthly specials</h1>
+    <a class="btn btn-secondary" href="/admin">&larr; Dashboard</a>
+  </div>
+
+  <div class="card">
+    <h2>Upload this month's specials</h2>
+    <p class="muted">
+      A CSV file with two columns: <code>product_code</code> and <code>special_price</code>.
+      Uploading a new file <strong>replaces</strong> the current specials list entirely —
+      any product not in the file goes back to its regular price.
+    </p>
+    <% if (error) { %><p style="color:#b00"><%= error %></p><% } %>
+    <% if (result) { %>
+      <p style="color:#0a7a2f">
+        Done — <%= result.matched %> product(s) updated.
+        <% if (result.notFoundCount > 0) { %>
+          <%= result.notFoundCount %> code(s) in the file didn't match any product
+          (e.g. <%= result.notFoundSample.join(', ') %><%= result.notFoundCount > result.notFoundSample.length ? ', …' : '' %>) — double check those codes.
+        <% } %>
+      </p>
+    <% } %>
+    <form method="post" action="/admin/specials/upload" enctype="multipart/form-data" class="row">
+      <input type="file" name="file" accept=".csv" required>
+      <button type="submit">Upload &amp; replace specials</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Currently active specials (<%= specials.length %>)</h2>
+    <% if (specials.length === 0) { %>
+      <p class="muted">No specials are active right now.</p>
+    <% } else { %>
+      <form method="post" action="/admin/specials/clear" onsubmit="return confirm('End all current specials? This cannot be undone.');">
+        <button type="submit" class="btn-secondary">End all specials now</button>
+      </form>
+      <table>
+        <tr><th>Code</th><th>Description</th><th>Regular price</th><th>Special price</th></tr>
+        <% specials.forEach(s => { %>
+          <tr>
+            <td><%= s.product_code %></td>
+            <td><%= s.description %></td>
+            <td>$<%= Number(s.unit_price).toFixed(2) %></td>
+            <td>$<%= Number(s.special_price).toFixed(2) %></td>
+          </tr>
+        <% }) %>
+      </table>
+    <% } %>
+  </div>
+</body>
+</html>
