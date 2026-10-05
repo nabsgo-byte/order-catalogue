@@ -60,7 +60,6 @@
   <table>
     <tr><th></th><th>Code</th><th>Description</th><th>Unit</th><th>Price</th><th></th></tr>
     <% products.forEach(p => { %>
-      <% const onSpecial = p.special_price !== null && p.special_price !== undefined; %>
       <tr>
         <td>
           <% if (p.has_image) { %>
@@ -73,11 +72,11 @@
         <td><%= p.description %></td>
         <td><%= p.unit_of_measure %></td>
         <td>
-          <% if (onSpecial) { %>
-            <span class="muted" style="text-decoration:line-through">$<%= Number(p.unit_price).toFixed(2) %></span><br>
-            <span style="color:#b00000; font-weight:bold">$<%= Number(p.special_price).toFixed(2) %> ★</span>
+          <% if (p.onSpecial) { %>
+            <span class="muted" style="text-decoration:line-through">$<%= Number(p.regularPrice).toFixed(2) %></span><br>
+            <span style="color:#b00000; font-weight:bold">$<%= Number(p.price).toFixed(2) %> / <%= p.per %> ★</span>
           <% } else { %>
-            $<%= Number(p.unit_price).toFixed(2) %>
+            <strong>$<%= Number(p.price).toFixed(2) %></strong> / <%= p.per %>
           <% } %>
         </td>
         <td>
