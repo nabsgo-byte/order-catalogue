@@ -47,6 +47,7 @@ async function initSchema() {
   // for just the uploaded codes — so last month's specials never linger.
   await pool.query(`
     ALTER TABLE products ADD COLUMN IF NOT EXISTS special_price NUMERIC(10,2);
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS special_case_price NUMERIC(10,2);
   `);
 
   // Company name is mandatory for new signups (enforced in the /register
