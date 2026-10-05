@@ -20,8 +20,8 @@
         <tr>
           <td><%= i.product_code %></td>
           <td><%= i.description %></td>
-          <td><%= i.qty %></td>
-          <td>$<%= i.unit_price.toFixed(2) %></td>
+          <td><%= i.qty %><%= i.uom ? ' ' + (i.uom === 'CASE' ? (i.qty === 1 ? 'case' : 'cases') : 'ea') : '' %></td>
+          <td>$<%= i.unit_price.toFixed(2) %><%= i.uom ? ' / ' + (i.uom === 'CASE' ? 'case' : 'ea') : '' %></td>
           <td>$<%= (i.unit_price * i.qty).toFixed(2) %></td>
         </tr>
       <% }) %>
