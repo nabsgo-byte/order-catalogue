@@ -37,7 +37,9 @@
               <button type="submit">Update</button>
             </form>
           </td>
-          <td>$<%= i.unit_price.toFixed(2) %><% if (i.on_special) { %> <span style="color:#b00000">★</span><% } %></td>
+          <td>
+            $<%= i.unit_price.toFixed(2) %> / <%= i.per || 'each' %><% if (i.on_special) { %> <span style="color:#b00000">★</span><% } %>
+          </td>
           <td>$<%= (i.unit_price * i.qty).toFixed(2) %></td>
           <td><form method="post" action="/cart/remove"><input type="hidden" name="productId" value="<%= i.id %>"><button class="btn-secondary" type="submit">Remove</button></form></td>
         </tr>
