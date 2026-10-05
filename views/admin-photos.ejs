@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Photos — Admin</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="topbar">
+    <h1>Product photos</h1>
+    <a class="btn btn-secondary" href="/admin">&larr; Dashboard</a>
+  </div>
+
+  <div class="card">
+    <h2>Add photos by link</h2>
+    <p class="muted">
+      <%= missingCount %> product(s) currently have no photo.
+      Paste one product per line: the product code, then a link to its photo.
+      Any separator works (space, comma, tab), so you can paste straight from a spreadsheet.
+      A photo added here replaces any photo the product already has.
+    </p>
+    <p class="muted">Example:<br><code>ABC123 https://example.com/photos/abc123.jpg</code></p>
+
+    <% if (error) { %><p style="color:#b00"><%= error %></p><% } %>
+    <% if (result) { %>
+      <div style="color:#0a7a2f">
+        <p>Done: <%= result.matched %> photo(s) saved.</p>
+      </div>
+      <% if (result.notFoundCount > 0) { %>
+        <p style="color:#b00">
+          <%= result.notFoundCount %> code(s) didn't match any product
+          (e.g. <%= result.notFoundSample.join(', ') %><%= result.notFoundCount > result.notFoundSample.length ? ', …' : '' %>).
+        </p>
+      <% } %>
+      <% if (result.failedCount > 0) { %>
+        <p style="color:#b00"><%= result.failedCount %> photo(s) couldn't be downloaded:</p>
+        <ul class="muted">
+          <% result.failedSample.forEach(f => { %><li><%= f %></li><% }) %>
+          <% if (result.failedCount > result.failedSample.length) { %><li>…</li><% } %>
+        </ul>
+      <% } %>
+      <% if (result.skippedCount > 0) { %>
+        <p style="color:#b00"><%= result.skippedCount %> line(s) skipped because they had no code or no link:</p>
+        <ul class="muted">
+          <% result.skippedSample.forEach(s => { %><li><%= s %></li><% }) %>
+          <% if (result.skippedCount > result.skippedSample.length) { %><li>…</li><% } %>
+        </ul>
+      <% } %>
+    <% } %>
+
+    <form method="post" action="/admin/photos/upload">
+      <textarea name="links" rows="12" style="width:100%; font-family:monospace; font-size:13px; padding:8px; border:1px solid var(--border); border-radius:6px" placeholder="CODE  https://link-to-photo.jpg"><%= linksValue %></textarea>
+      <p><button type="submit" onclick="this.disabled=true; this.textContent='Downloading photos…'; this.form.submit();">Save photos</button></p>
+    </form>
+  </div>
+</body>
+</html>

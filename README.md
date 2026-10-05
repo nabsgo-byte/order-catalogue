@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/32542626/README.md)
 # Catalog order app
 
 A small ordering app: customers identify themselves by name, browse your

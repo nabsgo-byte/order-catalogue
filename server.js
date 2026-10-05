@@ -17,6 +17,39 @@ const COMPANY_NAME = process.env.COMPANY_NAME || 'Our Catalog';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'changeme';
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 
+if (!process.env.ADMIN_PASSWORD) {
+  console.warn('[security] ADMIN_PASSWORD is not set, so the admin password is "changeme". Set it on Render.');
+}
+if (!process.env.SESSION_SECRET) {
+  console.warn('[security] SESSION_SECRET is not set. Set it to a long random value on Render.');
+}
+
+// Express 4 doesn't catch errors thrown inside async route handlers: a single
+// database hiccup would become an unhandled rejection and crash the whole
+// server for everyone. This wraps every route so errors go to the error page
+// at the bottom of this file instead.
+for (const method of ['get', 'post']) {
+  const original = app[method].bind(app);
+  app[method] = (routePath, ...handlers) => {
+    if (handlers.length === 0) return original(routePath); // app.get('setting')
+    return original(
+      routePath,
+      ...handlers.map((h) => (req, res, next) => {
+        try {
+          const result = h(req, res, next);
+          if (result && typeof result.catch === 'function') result.catch(next);
+        } catch (err) {
+          next(err);
+        }
+      })
+    );
+  };
+}
+
+// For putting customer-typed text into email HTML safely.
+const escapeHtml = (s) =>
+  String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
 app.set('view engine', 'ejs');
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -46,10 +79,15 @@ function requireAdmin(req, res, next) {
 }
 
 function cartArray(session) {
-  return Object.entries(session.cart || {}).map(([productId, qty]) => ({
-    productId: Number(productId),
-    qty
-  }));
+  return Object.entries(session.cart || {})
+    .map(([productId, qty]) => ({ productId: Number(productId), qty: Number(qty) }))
+    .filter((e) => Number.isInteger(e.productId) && e.productId > 0 && e.qty > 0);
+}
+
+// Product ids arrive from form fields; only accept a real positive integer.
+function parseProductId(value) {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
 }
 
 // Mirrors the session cart onto the customer's row, so it isn't lost if the
@@ -143,11 +181,18 @@ app.post('/register', async (req, res) => {
     });
   }
 
-  const { rows } = await pool.query(
-    `INSERT INTO customers (name, company_name, address, phone, email) VALUES ($1, $2, $3, $4, $5)
-     RETURNING *`,
-    [name, companyName, address, phone, email || null]
-  );
+  let rows;
+  try {
+    ({ rows } = await pool.query(
+      `INSERT INTO customers (name, company_name, address, phone, email) VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [name, companyName, address, phone, email || null]
+    ));
+  } catch (err) {
+    if (err.code !== '23505') throw err; // 23505 = name already taken
+    delete req.session.pendingName;
+    return res.render('start', { error: `The name "${name}" is already registered. Please enter it again to continue.` });
+  }
 
   req.session.customerId = rows[0].id;
   req.session.customerName = rows[0].name;
@@ -272,11 +317,13 @@ app.get('/catalog', requireCustomer, async (req, res) => {
 });
 
 app.post('/cart/add', requireCustomer, async (req, res) => {
-  const productId = req.body.productId;
+  const productId = parseProductId(req.body.productId);
   const qty = Math.max(1, parseInt(req.body.qty, 10) || 1);
-  req.session.cart = req.session.cart || {};
-  req.session.cart[productId] = (req.session.cart[productId] || 0) + qty;
-  await persistCart(req);
+  if (productId) {
+    req.session.cart = req.session.cart || {};
+    req.session.cart[productId] = (req.session.cart[productId] || 0) + qty;
+    await persistCart(req);
+  }
   const params = new URLSearchParams();
   if (req.body.q) params.set('q', req.body.q);
   if (req.body.page) params.set('page', req.body.page);
@@ -286,7 +333,8 @@ app.post('/cart/add', requireCustomer, async (req, res) => {
 });
 
 app.post('/cart/update', requireCustomer, async (req, res) => {
-  const productId = req.body.productId;
+  const productId = parseProductId(req.body.productId);
+  if (!productId) return res.redirect('/cart');
   const qty = Math.max(0, parseInt(req.body.qty, 10) || 0);
   req.session.cart = req.session.cart || {};
   if (qty === 0) delete req.session.cart[productId];
@@ -296,7 +344,7 @@ app.post('/cart/update', requireCustomer, async (req, res) => {
 });
 
 app.post('/cart/remove', requireCustomer, async (req, res) => {
-  const productId = req.body.productId;
+  const productId = parseProductId(req.body.productId);
   if (req.session.cart) delete req.session.cart[productId];
   await persistCart(req);
   res.redirect('/cart');
@@ -312,7 +360,8 @@ async function loadCartItems(session) {
      FROM products WHERE id = ANY($1::int[])`,
     [ids]
   );
-  return entries.map((e) => {
+  // Skip anything no longer in the catalog rather than ordering "Unknown product".
+  return entries.filter((e) => rows.some((r) => r.id === e.productId)).map((e) => {
     const p = rows.find((r) => r.id === e.productId);
     // CASE items are charged per case, EACH items per unit, and the special
     // price is used whenever one is currently set on the product.
@@ -370,8 +419,8 @@ app.post('/order/submit', requireCustomer, async (req, res) => {
       await sendEmail({
         to: customer.email,
         subject: `Your quote #${order.id} from ${COMPANY_NAME}`,
-        html: `<p>Hi ${customer.name},</p><p>Thanks for your order. Your quote is attached.</p>${
-          order.reference ? `<p>Reference: ${order.reference}</p>` : ''
+        html: `<p>Hi ${escapeHtml(customer.name)},</p><p>Thanks for your order. Your quote is attached.</p>${
+          order.reference ? `<p>Reference: ${escapeHtml(order.reference)}</p>` : ''
         }<p>Total: $${total.toFixed(2)}</p>`,
         attachments: [{ filename: `quote-${order.id}.pdf`, content: pdfBuffer }]
       });
@@ -395,10 +444,10 @@ app.post('/order/submit', requireCustomer, async (req, res) => {
       await sendEmail({
         to: ADMIN_EMAIL,
         subject: `New order #${order.id} — ${customer.name} — $${total.toFixed(2)}`,
-        html: `<p>New order from <b>${customer.name}</b>${
-          customer.company_name ? ` (${customer.company_name})` : ''
-        } — ${customer.phone}, ${customer.address}.</p>${
-          order.reference ? `<p>Reference: ${order.reference}</p>` : ''
+        html: `<p>New order from <b>${escapeHtml(customer.name)}</b>${
+          customer.company_name ? ` (${escapeHtml(customer.company_name)})` : ''
+        } — ${escapeHtml(customer.phone)}, ${escapeHtml(customer.address)}.</p>${
+          order.reference ? `<p>Reference: ${escapeHtml(order.reference)}</p>` : ''
         }<p>Total: $${total.toFixed(2)}</p>`,
         attachments: [
           { filename: `order-${order.id}.csv`, content: Buffer.from(csv, 'utf-8') },
@@ -414,6 +463,7 @@ app.post('/order/submit', requireCustomer, async (req, res) => {
 });
 
 app.get('/quote/:id', requireCustomer, async (req, res) => {
+  if (!parseProductId(req.params.id)) return res.redirect('/catalog');
   const { rows } = await pool.query('SELECT * FROM orders WHERE id = $1', [req.params.id]);
   const order = rows[0];
   if (!order || order.customer_id !== req.session.customerId) return res.redirect('/catalog');
@@ -425,6 +475,7 @@ app.get('/quote/:id', requireCustomer, async (req, res) => {
 });
 
 app.get('/quote/:id/pdf', async (req, res) => {
+  if (!parseProductId(req.params.id)) return res.status(404).send('Not found');
   const { rows } = await pool.query('SELECT * FROM orders WHERE id = $1', [req.params.id]);
   const order = rows[0];
   if (!order) return res.status(404).send('Not found');
@@ -767,6 +818,19 @@ app.post('/admin/photos/upload', requireAdmin, async (req, res) => {
       skippedSample: skipped.slice(0, 10)
     }
   });
+});
+
+// ---------- Errors ----------
+
+app.use((req, res) => res.status(404).send('Page not found. <a href="/">Go to the start page</a>'));
+
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  console.error(`Error on ${req.method} ${req.originalUrl}:`, err);
+  if (res.headersSent) return;
+  res
+    .status(500)
+    .send('Sorry, something went wrong. Please go back and try again in a moment. <a href="/">Start page</a>');
 });
 
 // ---------- Startup ----------
