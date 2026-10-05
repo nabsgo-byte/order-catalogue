@@ -14,7 +14,7 @@
   <div class="card">
     <h2>Upload this month's specials</h2>
     <p class="muted">
-      A CSV file with two columns: <code>product_code</code> and <code>special_price</code>.
+      A CSV file with the columns <code>product_code</code>, <code>special_price</code> (the per-unit special price) and, for items sold by the case, <code>special_case_price</code> (the special price for a whole case).
       Uploading a new file <strong>replaces</strong> the current specials list entirely —
       any product not in the file goes back to its regular price.
     </p>
@@ -43,13 +43,15 @@
         <button type="submit" class="btn-secondary">End all specials now</button>
       </form>
       <table>
-        <tr><th>Code</th><th>Description</th><th>Regular price</th><th>Special price</th></tr>
+        <tr><th>Code</th><th>Description</th><th>Sold by</th><th>Regular</th><th>Special unit price</th><th>Special case price</th></tr>
         <% specials.forEach(s => { %>
           <tr>
             <td><%= s.product_code %></td>
             <td><%= s.description %></td>
-            <td>$<%= Number(s.unit_price).toFixed(2) %></td>
+            <td><%= s.case_price != null ? 'CASE' : 'EACH' %></td>
+            <td>$<%= Number(s.case_price != null ? s.case_price : s.unit_price).toFixed(2) %></td>
             <td>$<%= Number(s.special_price).toFixed(2) %></td>
+            <td><%= s.case_price != null ? (s.special_case_price != null ? '$' + Number(s.special_case_price).toFixed(2) : 'calculated') : '—' %></td>
           </tr>
         <% }) %>
       </table>
